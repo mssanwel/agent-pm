@@ -7,11 +7,10 @@
 linear:
   team_id: c2b9eeef-df4b-4afd-884f-49a3fc78f8eb   # Mssanwel team
 
-  # Workflow states. The `ai_todo` state MUST be created manually in Linear
-  # (the MCP does not expose `create_issue_status`). Once created, paste its
-  # UUID into the `ai_todo` field below.
+  # Workflow states. The `ai_todo` state was created manually in Linear
+  # (the MCP does not expose `create_issue_status`).
   states:
-    ai_todo: "TODO-create-AI-Todo-state-in-Linear-UI"   # <-- REPLACE
+    ai_todo: 082634ad-9bda-4026-932f-6fca85f41bfe
     ai_in_progress: 0bbdc0cf-89c1-419a-9cc3-1b90221cc546
     ai_review: 431139e4-5785-4ffc-9969-e812d17c802c
     human_review: bce05a50-cbad-458a-8ff6-b9e3efe48a93
