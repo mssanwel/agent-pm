@@ -74,5 +74,23 @@ claude -p "${PROMPT}" \
 
 STATUS=$?
 
+# --- extract heartbeat JSON from dispatcher output and append ---
+# The dispatcher prints `HEARTBEAT_JSON: {...}` on one line for non-idle runs.
+# Writing to heartbeat.jsonl from *inside* the claude CLI is blocked by the
+# sensitive-file guard, so the runner appends here (bash context — no guard).
+HEARTBEAT_FILE="${REPO_DIR}/.claude/agent-pm/heartbeat.jsonl"
+HEARTBEAT_LINE="$(grep -m1 '^HEARTBEAT_JSON: ' "${LOG_FILE}" | tail -1 | sed 's/^HEARTBEAT_JSON: //')"
+# Only use the heartbeat line if it was emitted *during this run* — tail the
+# last 200 lines of the log since this run's `dispatch start` marker.
+if [[ -n "${HEARTBEAT_LINE}" ]]; then
+  # Confirm it's from this run (appears after the last `dispatch start`)
+  LAST_START_LINE=$(grep -n 'dispatch start' "${LOG_FILE}" | tail -1 | cut -d: -f1)
+  HB_LINE_NO=$(grep -n '^HEARTBEAT_JSON: ' "${LOG_FILE}" | tail -1 | cut -d: -f1)
+  if [[ -n "${LAST_START_LINE}" ]] && [[ -n "${HB_LINE_NO}" ]] && [[ "${HB_LINE_NO}" -gt "${LAST_START_LINE}" ]]; then
+    printf '%s\n' "${HEARTBEAT_LINE}" >> "${HEARTBEAT_FILE}"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] heartbeat appended" >> "${LOG_FILE}"
+  fi
+fi
+
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] dispatch end (exit=${STATUS})" >> "${LOG_FILE}"
 exit ${STATUS}

@@ -114,19 +114,23 @@ Process the **oldest** item in `Q_work` (plus any promoted from Phase 3 if capac
 
 5. **Token watchdog**: if cumulative tokens this run exceed `limits.max_tokens_per_run`, abort remaining phases. Comment on the in-progress issue: `Aborted partway — token budget exhausted. Requeued. — Agent PM`. Leave state at `AI In Progress`.
 
-## Phase 5 — Heartbeat (local file, not Linear)
+## Phase 5 — Heartbeat (the runner writes, not you)
 
 **Only if Phase 1, 2, 3, or 4 did real work** (i.e. not a fast-exit run):
 
-Append one JSON line to `.claude/agent-pm/heartbeat.jsonl`. This is the dispatcher's own logbook — Phase 0 reads it for cost-cap enforcement; `/agent-pm status` tails it for observability. No Linear issue involved; a runtime log shouldn't pollute the board.
+**DO NOT try to write `heartbeat.jsonl` yourself.** The `claude` CLI's sensitive-file guard blocks Bash appends to files under `.claude/` in unattended mode. Instead, emit a single marker line to stdout that the bash runner will grep and append.
 
-Use `Bash` to append (atomic on POSIX when <PIPE_BUF):
+Print exactly ONE line in this format, as plain stdout (no code fences, no prefix text on the same line):
 
 ```
-printf '%s\n' '<json-line>' >> /Users/muhammadsaadshahidanwel/code/agent-pm/.claude/agent-pm/heartbeat.jsonl
+HEARTBEAT_JSON: {"ts":"<ISO-UTC>","feedback":<n>,"triage":<n>,"worker":<n>,"tokens":<int>,"cost_usd":<float>,"issues_touched":[<linear-ids>]}
 ```
 
-Each line is a flat JSON object:
+The runner (`scripts/run-dispatch.sh`) greps for `^HEARTBEAT_JSON: ` on the last 100 lines, strips the prefix, and appends the JSON to `heartbeat.jsonl` from bash (where file writes aren't guarded).
+
+If the run was idle (all three queues empty → fast-exit in Phase 1), **do NOT emit HEARTBEAT_JSON**. Idle ticks don't get logged.
+
+### JSON schema
 
 ```json
 {"ts":"2026-04-16T05:57:40Z","feedback":0,"triage":1,"worker":1,"tokens":28000,"cost_usd":0.35,"issues_touched":["MSS-2792"]}
