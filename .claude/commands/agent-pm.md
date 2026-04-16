@@ -7,9 +7,23 @@ Claude reads this file and executes the branch that matches the subcommand. No s
 
 ## Conventions
 
-- Project root is the repo containing `.claude/agent-pm/`. Resolve all paths relative to it.
-- Never edit any file outside `.claude/agent-pm/` or `.claude/commands/` from this command.
-- Any command that mutates state (`pause`, `resume`, `set`) must **show a diff and confirm** before writing, unless `--yes` is passed.
+**All paths are absolute.** The slash command is symlinked into `~/.claude/commands/` so it runs from any cwd — never assume a relative `.claude/` path.
+
+```
+REPO_DIR      = ~/code/agent-pm
+CONFIG        = ~/code/agent-pm/.claude/agent-pm/config.yaml
+REGISTRY      = ~/code/agent-pm/.claude/agent-pm/skill-registry.yaml
+LOG           = ~/code/agent-pm/.claude/agent-pm/learning-log.md
+PAUSE_FLAG    = ~/code/agent-pm/.claude/agent-pm/pause.flag
+DISPATCH_TRIG = ~/code/agent-pm/.claude/triggers/agent-pm-dispatch.md
+WEEKLY_TRIG   = ~/code/agent-pm/.claude/triggers/agent-pm-weekly.md
+RUNNER_LOG    = ~/code/agent-pm/.claude/agent-pm/logs/dispatch-YYYY-MM-DD.log
+LAUNCHAGENTS  = ~/Library/LaunchAgents/com.mssanwel.agent-pm.{dispatch,weekly}.plist
+```
+
+Rules:
+- Never edit files outside `~/code/agent-pm/.claude/` from this command (except loading launchd plists).
+- Any mutating command (`pause`, `resume`, `set`) must **show a diff and confirm** before writing, unless `--yes` is passed.
 
 ---
 
@@ -19,114 +33,146 @@ Show current state of the dispatcher. No writes.
 
 Collect in parallel where possible:
 
-1. **Pause flag.** Check `.claude/agent-pm/pause.flag` — report `PAUSED` + first line of the file if present, else `LIVE`.
-2. **Working hours.** Parse `.claude/agent-pm/config.yaml`. Compute current time in `timezone`, report in-window or out-of-window.
-3. **Last dispatch run.** `list_comments` on the Heartbeat issue (filter `labels=agent-pm,ops`, title `Agent PM — Heartbeat`); show the most recent run line.
-4. **Queue sizes.** Three `list_issues` calls in parallel on team Mssanwel (`c2b9eeef-df4b-4afd-884f-49a3fc78f8eb`):
-   - `label=agent-pm, updatedAt >= now-15min` — feedback queue
-   - `label=agent-pm, state=AI Todo` — triage queue
-   - `label=agent-pm, state=AI In Progress` — worker queue
-5. **Cost.** Sum today's run costs from the Heartbeat comments. Compare to `cost_caps.daily_usd_stop`.
-6. **Last 3 log entries.** Tail `.claude/agent-pm/learning-log.md`.
+1. **Pause flag.** `test -f ~/code/agent-pm/.claude/agent-pm/pause.flag` — report `PAUSED` + first line of the file if present, else `LIVE`.
+2. **Working hours.** Parse `CONFIG`. `TZ=<timezone> date +%H:%M` → compare against `working_hours.start|end|days`. Report in-window or out-of-window.
+3. **launchd status.** `launchctl list | grep agent-pm` — confirm both jobs loaded, show last exit status.
+4. **Last dispatch run.** Tail `~/code/agent-pm/.claude/agent-pm/logs/dispatch-$(date +%Y-%m-%d).log` — show the last 3 lines.
+5. **Heartbeat (last run stats).** `get_issue` on `MSS-2791` (or whatever `registry.linear.issues.heartbeat_id` says); `list_comments` for most recent with `Run:` prefix.
+6. **Queue sizes** — three parallel `list_issues` calls on team Mssanwel (`c2b9eeef-df4b-4afd-884f-49a3fc78f8eb`):
+   - `label=agent-pm, updatedAt >= now-15min` → feedback
+   - `label=agent-pm, state=AI Todo` → triage
+   - `label=agent-pm, state=AI In Progress` → worker
+7. **Today's cost.** Sum today's `COST: $X.XX` lines from heartbeat comments. Compare to `cost_caps.daily_usd_stop`.
+8. **Last 3 log entries.** Tail `LOG`.
 
-Render as a compact status table.
+Render as a compact status block.
 
 ---
 
 ## pause [reason]
 
-1. Compose a pause.flag body: `paused: <timestamp>\nreason: <reason or "manual">`
-2. `Write` `.claude/agent-pm/pause.flag`
-3. Confirm: "Paused. Dispatcher will exit on next tick."
+1. Compose body: `paused: <ISO timestamp>\nreason: <reason or "manual">`
+2. `Write ~/code/agent-pm/.claude/agent-pm/pause.flag` with that body
+3. Confirm: "Paused. Dispatcher will exit on next tick without any LLM or Linear call."
 
 ## resume
 
-1. Check `.claude/agent-pm/pause.flag` exists. If not, say "Already live" and stop.
-2. **If outside working hours**: confirm first. Show current time vs window and ask "Resume anyway?"
-3. Delete the flag via `Bash: rm .claude/agent-pm/pause.flag`
-4. Confirm: "Resumed. Next tick will run."
+1. `test -f ~/code/agent-pm/.claude/agent-pm/pause.flag` — if absent, say "Already live" and stop.
+2. **If outside working hours**: confirm first. Show current time vs window, ask "Resume anyway?"
+3. `Bash: rm ~/code/agent-pm/.claude/agent-pm/pause.flag`
+4. Confirm: "Resumed. Next scheduled tick will run (within 10 min)."
+
+Optional: offer to force an immediate run with `launchctl start com.mssanwel.agent-pm.dispatch`.
 
 ---
 
 ## config
 
-Print `.claude/agent-pm/config.yaml` with a short one-line explanation next to each top-level key. No writes.
+Print `CONFIG` (`~/code/agent-pm/.claude/agent-pm/config.yaml`) with a one-line annotation next to each top-level key. No writes.
 
 ## set <path> <value>
 
 Edit a single value in `config.yaml` using dotted path notation.
 
 Examples:
-- `set working_hours.start 09:00`
-- `set working_hours.days [mon,tue,wed,thu,fri]`
-- `set limits.max_worker_items 2`
-- `set frequency.dispatch_cron "*/5 * * * *"`
-- `set cost_caps.daily_usd_stop 50`
-- `set skill_overrides.crm-sync.working_hours.enabled false`
+
+```
+/agent-pm set timezone Asia/Karachi
+/agent-pm set working_hours.start 09:00
+/agent-pm set working_hours.days [mon,tue,wed,thu,fri]
+/agent-pm set limits.max_worker_items 2
+/agent-pm set cost_caps.daily_usd_stop 50
+/agent-pm set skill_overrides.crm-sync.working_hours.enabled false
+/agent-pm set notify.slack_webhook "https://hooks.slack.com/services/..."
+```
 
 Steps:
-1. Read current value at `<path>`. If not found, create the path.
-2. Parse `<value>`: bools → `true`/`false`; lists `[a,b,c]` → YAML sequence; strings → quoted if they contain spaces or colons.
-3. Show diff (before → after) and ask to confirm.
-4. On confirm, `Edit` the file.
-5. Remind: "If you changed `frequency.*`, run `/agent-pm deploy` to re-register the cron."
+
+1. Read the current value at `<path>` in `CONFIG`. If the path doesn't exist, say so and confirm creation.
+2. Parse `<value>`: bools → `true`/`false`; integers stay; lists `[a,b,c]` → YAML sequence; strings → quoted if they contain spaces or colons.
+3. Show a three-line diff:
+   ```
+   <path>:
+     before: <old>
+     after:  <new>
+   ```
+4. Ask to confirm (skip if `--yes` was passed).
+5. On confirm, `Edit` the file in place (preserving surrounding comments).
+6. **If the change affects scheduling** (`frequency.*`): remind the user to run `/agent-pm deploy` to reload launchd.
 
 ---
 
 ## skills
 
-List all registered skills. Read `.claude/agent-pm/skill-registry.yaml`. For each entry under `skills:`, render:
+List all registered skills. Read `REGISTRY`. Render:
 
-| Skill | Labels | Handler | Keywords | Approval? | Last used |
-|---|---|---|---:|---|---|
+| Skill | Labels | Handler | Keywords | Approval | Last used |
+|---|---|---|---:|---:|---|
 
-"Last used" comes from the learning-log (most recent date a matching entry appears).
+"Last used" comes from the learning-log — most recent date a matching entry appears.
 
 ## test <skill-name> "<issue-title>"
 
-Dry run router. No Linear writes.
+Dry run router — no Linear writes.
 
-1. Load `skill-registry.yaml` and last 20 learning-log entries.
-2. Given `<issue-title>` (and any additional description on subsequent lines), simulate Phase 3 triage:
-   - Show keyword matches per skill
-   - Show label matches
+1. Load `REGISTRY` and the last 20 entries from `LOG`.
+2. Given `<issue-title>` (plus any description on subsequent lines), simulate Phase 3 triage:
+   - Score keyword matches per skill
+   - Note any label matches
    - Pick a winner
-3. Print: `Matched: <skill>. Reason: <one-line>. Handler: <handler>.`
+3. Print: `Matched: <skill>. Reason: <one-line>. Handler: <handler>. Approval: <bool>.`
 
-Use this to tune keywords before committing.
+Use to tune `keywords:` before shipping a change.
 
 ---
 
 ## log [n]
 
-Tail the last N learning-log entries (default 10). Read `.claude/agent-pm/learning-log.md`.
+Tail the last N learning-log entries (default 10). Read `LOG`.
 
 ## deploy
 
-Re-register the cron jobs. Reads `frequency.dispatch_cron` and `frequency.weekly_cron` from config.
+Re-install the launchd jobs so cron changes in `config.yaml` (or changes to the plist files) take effect.
 
-1. `CronList` — inventory current Agent PM crons.
-2. For each of dispatch / weekly:
-   - If a cron with the matching label exists with a different schedule: `CronDelete` then `CronCreate` with the new schedule.
-   - If missing: `CronCreate`.
-3. Show the final `CronList` result.
+**Note:** `frequency.dispatch_cron` in `config.yaml` is informational only — the actual schedule is defined in the launchd plists at `~/code/agent-pm/scripts/launchd/`. If you changed either, run this.
 
-Use this after changing `frequency.*` values.
+Steps:
+
+1. `Bash: ~/code/agent-pm/scripts/install-launchd.sh` — the installer is idempotent (unloads then reloads).
+2. Verify: `launchctl list | grep agent-pm` — both jobs should be listed.
+3. Optional sanity check: `launchctl start com.mssanwel.agent-pm.dispatch` — fires one immediate run. Tail the log to confirm.
+
+To uninstall entirely: `Bash: ~/code/agent-pm/scripts/install-launchd.sh uninstall`.
 
 ---
 
 ## doctor
 
-Health check. No writes. Prints pass/fail per item.
+Health check. Read-only. Prints pass/fail per item with a remedy when something's wrong.
 
-1. **Files present**: `config.yaml`, `skill-registry.yaml`, `learning-log.md`, `agent-pm-dispatch.md`, `agent-pm-weekly.md`.
-2. **YAML parses**: config and registry.
-3. **Linear state IDs resolvable**: for each state UUID in the registry, call `get_issue_status`. Flag any `TODO-create-` placeholders loudly.
-4. **Linear label IDs**: same — `get_issue_status` / verify via `list_issue_labels`.
-5. **MCP connectivity**: ping Linear (`list_teams`), Obsidian (trivial read), Graphify (if in registry as `mcp:`).
-6. **Pause flag**: present / not present.
-7. **Last dispatch success**: look for the latest Heartbeat comment without an error line.
-8. **Today's cost vs cap**: compare.
-9. **Cron registered**: `CronList` must contain both dispatch + weekly.
+1. **Files present**: `CONFIG`, `REGISTRY`, `LOG`, `DISPATCH_TRIG`, `WEEKLY_TRIG`, both runner scripts executable.
+2. **YAML parses**: `python3 -c "import yaml; yaml.safe_load(open('CONFIG'))"` and same for `REGISTRY`.
+3. **Registry sanity**: `linear.team_id`, all state IDs, all label IDs are present and non-placeholder (no `TODO-create-` strings).
+4. **Linear state IDs resolve**: for each state UUID, `get_issue_status`. Any failures flagged with their UUID.
+5. **Linear labels resolve**: `list_issue_labels` + check each registry UUID is in the result set.
+6. **Heartbeat issue exists**: `get_issue` on `registry.linear.issues.heartbeat_id`. If archived or missing — big red alert.
+7. **launchd**: `launchctl list | grep agent-pm` shows both jobs, last exit status 0 (or not-yet-run).
+8. **Slash command reachable**: `test -L ~/.claude/commands/agent-pm.md` → is the symlink in place?
+9. **Pause flag**: present / not present (status, not a pass/fail).
+10. **Recent dispatch activity**: does `RUNNER_LOG` for today exist? Any errors in it?
+11. **Claude CLI found**: `command -v claude` resolves.
+12. **Today's cost vs cap**: show current spend from heartbeat, compare to `cost_caps.daily_usd_stop`.
 
-Print a grid. Red if any fail, with a suggested remedy for each.
+Render as a grid:
+
+```
+✓ config.yaml parses
+✓ skill-registry.yaml parses
+✓ all state UUIDs resolve
+✓ heartbeat MSS-2791 exists, not archived
+✓ launchd dispatch loaded (last exit 0)
+⚠  pause.flag PRESENT — dispatcher is paused (this may be intentional)
+✓ claude CLI at /opt/homebrew/bin/claude
+✓ slash command symlink at ~/.claude/commands/agent-pm.md
+✓ today's cost: $0.00 / cap $25.00
+```
