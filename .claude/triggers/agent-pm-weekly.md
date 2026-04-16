@@ -45,6 +45,8 @@ Make the edit with the Edit tool. Keep diffs small and targeted.
 
 Move entries **older than 30 days** from `learning-log.md` to `learning-log-archive.md` (create the archive file if missing). Keep the original chronological order.
 
+Also rotate `heartbeat.jsonl`: move lines whose `ts` is >30 days old into `heartbeat-archive-YYYY-MM.jsonl` (one file per calendar month). Keep the live `heartbeat.jsonl` small so Phase 0 cost-cap reads stay fast.
+
 ### 6. Post the weekly report
 
 Create a Linear issue in the Mssanwel team:

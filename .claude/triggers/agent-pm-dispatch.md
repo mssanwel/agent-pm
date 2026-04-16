@@ -19,7 +19,7 @@ Run these checks in order. Exit immediately if any fails.
 3. **Working hours.** Compare current time in `config.timezone` against `working_hours.start|end|days`.
    - Outside window AND `process_feedback_outside_hours=false` → exit.
    - Outside window AND `process_feedback_outside_hours=true` → run Phase 1 only, skip Phases 2–4.
-4. **Daily cost cap.** `list_comments` on the heartbeat issue (ID from `skill-registry.yaml:linear.issues.heartbeat_id`). Filter to today's UTC date. Extract every line matching `^COST: \$([0-9.]+)$` and sum. If sum ≥ `cost_caps.daily_usd_stop`:
+4. **Daily cost cap.** Read `.claude/agent-pm/heartbeat.jsonl` (if it doesn't exist yet, sum=0). Each line is a JSON object with fields `ts` (ISO UTC), `cost_usd` (float), etc. Filter to today's UTC date, sum `cost_usd`. If sum ≥ `cost_caps.daily_usd_stop`:
    - `Write .claude/agent-pm/pause.flag` with content: `auto-paused: <ISO timestamp>\nreason: daily cost cap $<sum> ≥ $<cap>`
    - Create a Linear issue titled `Agent PM — auto-paused (daily cost cap)` in `Human Review` with label `agent-pm`, body explaining the trigger
    - Exit.
@@ -114,21 +114,27 @@ Process the **oldest** item in `Q_work` (plus any promoted from Phase 3 if capac
 
 5. **Token watchdog**: if cumulative tokens this run exceed `limits.max_tokens_per_run`, abort remaining phases. Comment on the in-progress issue: `Aborted partway — token budget exhausted. Requeued. — Agent PM`. Leave state at `AI In Progress`.
 
-## Phase 5 — Heartbeat
+## Phase 5 — Heartbeat (local file, not Linear)
 
 **Only if Phase 1, 2, 3, or 4 did real work** (i.e. not a fast-exit run):
 
-1. **Read the pinned heartbeat ID** from `skill-registry.yaml:linear.issues.heartbeat_id`. Do NOT search by title — the ID is authoritative.
-2. If the ID is missing or the issue can't be fetched: log the problem and skip heartbeat posting this tick (don't create a new one from within the trigger — that's a human decision).
-3. **Post run stats** as a single comment on that issue. Use this exact machine-readable format (the cost-cap check in Phase 0 greps for `COST:`):
-   ```
-   Run: <ISO-8601 UTC> · feedback:<n> · triage:<n> · worker:<n>
-   TOKENS: <approx-int>
-   COST: $<x.xx>
-   — Agent PM
-   ```
-   `COST:` line is grepable — Phase 0 reads the day's heartbeat comments, sums `COST:` figures, compares to `cost_caps.daily_usd_stop`.
-5. Keep the heartbeat issue perma-open. Don't close it.
+Append one JSON line to `.claude/agent-pm/heartbeat.jsonl`. This is the dispatcher's own logbook — Phase 0 reads it for cost-cap enforcement; `/agent-pm status` tails it for observability. No Linear issue involved; a runtime log shouldn't pollute the board.
+
+Use `Bash` to append (atomic on POSIX when <PIPE_BUF):
+
+```
+printf '%s\n' '<json-line>' >> /Users/muhammadsaadshahidanwel/code/agent-pm/.claude/agent-pm/heartbeat.jsonl
+```
+
+Each line is a flat JSON object:
+
+```json
+{"ts":"2026-04-16T05:57:40Z","feedback":0,"triage":1,"worker":1,"tokens":28000,"cost_usd":0.35,"issues_touched":["MSS-2792"]}
+```
+
+Required fields: `ts` (ISO-8601 UTC), `feedback` (int), `triage` (int), `worker` (int), `tokens` (int), `cost_usd` (float). Optional: `issues_touched` (array of Linear IDs), `errors` (array of strings).
+
+The weekly trigger rotates lines older than 30 days into `heartbeat-archive-YYYY-MM.jsonl` to keep the live file lean.
 
 ## Phase 6 — Exit
 

@@ -58,7 +58,7 @@ flowchart TD
     N -->|approve| O["Move to Done<br/>→ 'approved' log entry"]
     N -->|correct| P["Comment + move back<br/>→ 'corrected' log entry<br/>→ re-queue"]
     N -->|reject| Q["Move to Backlog<br/>→ 'rejected' log entry"]
-    L --> R["Phase 5: heartbeat<br/>update stats issue"]
+    L --> R["Phase 5: heartbeat<br/>append to heartbeat.jsonl"]
     O --> R
     P --> B
     Q --> R
@@ -477,7 +477,7 @@ Look for a Linear issue titled `Agent PM — dispatch error <timestamp>` in `Hum
 
 ### Cost spiralling
 
-Immediate: `/agent-pm pause "cost spike"`. Investigate via heartbeat comments. Then:
+Immediate: `/agent-pm pause "cost spike"`. Investigate via `tail -20 ~/code/agent-pm/.claude/agent-pm/heartbeat.jsonl | jq`. Then:
 
 - Lower `limits.max_worker_items` to 1
 - Raise `frequency.min_seconds_between.worker`
@@ -518,7 +518,7 @@ Any one of these is enough to stop the system safely.
 | **Triage** | Phase 3 — matching issue → skill |
 | **Worker** | Phase 4 — executing the handler |
 | **Feedback** | Phase 2 — writing lessons from your corrections |
-| **Heartbeat** | The pinned Linear issue the dispatcher logs to after non-idle ticks |
+| **Heartbeat** | `.claude/agent-pm/heartbeat.jsonl` — local append-only log of non-idle ticks |
 | **Learning log** | `learning-log.md` — rolling record of corrections and approvals |
 | **Skill override** | Per-skill config values that replace the top-level defaults |
 

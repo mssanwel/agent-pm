@@ -338,7 +338,7 @@ Three layers of "this thing can't run amok":
 
 1. **`pause.flag`** — a file that, when present, causes the dispatcher to exit in pre-flight *before any Linear calls*. Ships committed. Delete to go live.
 2. **Working hours** — dispatcher exits cheaply outside the configured window. Feedback-only mode available via `process_feedback_outside_hours`.
-3. **Daily cost cap** — dispatcher tallies spend from its own Heartbeat issue. When the hard cap is hit, it **writes the pause flag itself** and files a Linear issue in `Human Review`. It does not auto-resume; you clear it manually.
+3. **Daily cost cap** — dispatcher appends a JSON line per run to `.claude/agent-pm/heartbeat.jsonl` with `cost_usd`, and sums today's lines on the next tick. When the hard cap is hit, it **writes the pause flag itself** and files a Linear issue in `Human Review`. It does not auto-resume; you clear it manually.
 
 Additional per-run limits: `max_feedback_items`, `max_triage_items`, `max_worker_items`, `max_tokens_per_run` (aborts the current phase if exceeded).
 

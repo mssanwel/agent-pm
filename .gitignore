@@ -4,6 +4,8 @@ pause.flag.bak
 .claude/agent-pm/learning-log-archive-*.md
 .claude/agent-pm/dispatch.lock
 .claude/agent-pm/logs/
+.claude/agent-pm/heartbeat.jsonl
+.claude/agent-pm/heartbeat-archive-*.jsonl
 
 # secrets — never commit
 .env

@@ -22,6 +22,7 @@ REPO_DIR      = ~/code/agent-pm
 CONFIG        = ~/code/agent-pm/.claude/agent-pm/config.yaml
 REGISTRY      = ~/code/agent-pm/.claude/agent-pm/skill-registry.yaml
 LOG           = ~/code/agent-pm/.claude/agent-pm/learning-log.md
+HEARTBEAT     = ~/code/agent-pm/.claude/agent-pm/heartbeat.jsonl
 PAUSE_FLAG    = ~/code/agent-pm/.claude/agent-pm/pause.flag
 DISPATCH_TRIG = ~/code/agent-pm/.claude/triggers/agent-pm-dispatch.md
 WEEKLY_TRIG   = ~/code/agent-pm/.claude/triggers/agent-pm-weekly.md
@@ -45,12 +46,12 @@ Collect in parallel where possible:
 2. **Working hours.** Parse `CONFIG`. `TZ=<timezone> date +%H:%M` → compare against `working_hours.start|end|days`. Report in-window or out-of-window.
 3. **launchd status.** `launchctl list | grep agent-pm` — confirm both jobs loaded, show last exit status.
 4. **Last dispatch run.** Tail `~/code/agent-pm/.claude/agent-pm/logs/dispatch-$(date +%Y-%m-%d).log` — show the last 3 lines.
-5. **Heartbeat (last run stats).** `get_issue` on `MSS-2791` (or whatever `registry.linear.issues.heartbeat_id` says); `list_comments` for most recent with `Run:` prefix.
+5. **Heartbeat (last run stats).** `tail -1 HEARTBEAT` — parse the JSON and show `ts`, `feedback/triage/worker` counts, `tokens`, `cost_usd`.
 6. **Queue sizes** — three parallel `list_issues` calls on team Mssanwel (`c2b9eeef-df4b-4afd-884f-49a3fc78f8eb`):
    - `label=agent-pm, updatedAt >= now-15min` → feedback
    - `label=agent-pm, state=AI Todo` → triage
    - `label=agent-pm, state=AI In Progress` → worker
-7. **Today's cost.** Sum today's `COST: $X.XX` lines from heartbeat comments. Compare to `cost_caps.daily_usd_stop`.
+7. **Today's cost.** `grep $(date -u +%Y-%m-%d) HEARTBEAT | jq -s 'map(.cost_usd) | add'` — sum today's lines, compare to `cost_caps.daily_usd_stop`.
 8. **Last 3 log entries.** Tail `LOG`.
 
 Render as a compact status block.
@@ -163,7 +164,7 @@ Health check. Read-only. Prints pass/fail per item with a remedy when something'
 3. **Registry sanity**: `linear.team_id`, all state IDs, all label IDs are present and non-placeholder (no `TODO-create-` strings).
 4. **Linear state IDs resolve**: for each state UUID, `get_issue_status`. Any failures flagged with their UUID.
 5. **Linear labels resolve**: `list_issue_labels` + check each registry UUID is in the result set.
-6. **Heartbeat issue exists**: `get_issue` on `registry.linear.issues.heartbeat_id`. If archived or missing — big red alert.
+6. **Heartbeat file writable**: `test -w HEARTBEAT || touch HEARTBEAT`. If unwritable — big red alert.
 7. **launchd**: `launchctl list | grep agent-pm` shows both jobs, last exit status 0 (or not-yet-run).
 8. **Slash command reachable**: `test -L ~/.claude/commands/agent-pm.md` → is the symlink in place?
 9. **Pause flag**: present / not present (status, not a pass/fail).
@@ -177,10 +178,10 @@ Render as a grid:
 ✓ config.yaml parses
 ✓ skill-registry.yaml parses
 ✓ all state UUIDs resolve
-✓ heartbeat MSS-2791 exists, not archived
+✓ heartbeat.jsonl writable (last run 2026-04-16T05:57:40Z)
 ✓ launchd dispatch loaded (last exit 0)
 ⚠  pause.flag PRESENT — dispatcher is paused (this may be intentional)
 ✓ claude CLI at /opt/homebrew/bin/claude
 ✓ slash command symlink at ~/.claude/commands/agent-pm.md
-✓ today's cost: $0.00 / cap $25.00
+✓ today's cost: $0.35 / cap $25.00
 ```
