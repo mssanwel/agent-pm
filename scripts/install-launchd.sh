@@ -11,41 +11,41 @@ REPO_DIR="${HOME}/code/agent-pm"
 SRC_DIR="${REPO_DIR}/scripts/launchd"
 DST_DIR="${HOME}/Library/LaunchAgents"
 
-DISPATCH_LABEL="com.mssanwel.agent-pm.dispatch"
-WEEKLY_LABEL="com.mssanwel.agent-pm.weekly"
-
-DISPATCH_PLIST="${DST_DIR}/${DISPATCH_LABEL}.plist"
-WEEKLY_PLIST="${DST_DIR}/${WEEKLY_LABEL}.plist"
+LABELS=(
+  "com.mssanwel.agent-pm.dispatch"
+  "com.mssanwel.agent-pm.weekly"
+  "com.mssanwel.agent-pm.security"
+)
 
 ACTION="${1:-install}"
 
 if [[ "${ACTION}" == "uninstall" ]]; then
   echo "→ Unloading launchd jobs…"
-  launchctl unload "${DISPATCH_PLIST}" 2>/dev/null || true
-  launchctl unload "${WEEKLY_PLIST}" 2>/dev/null || true
-  rm -f "${DISPATCH_PLIST}" "${WEEKLY_PLIST}"
-  echo "→ Removed ${DISPATCH_PLIST}"
-  echo "→ Removed ${WEEKLY_PLIST}"
+  for LABEL in "${LABELS[@]}"; do
+    PLIST="${DST_DIR}/${LABEL}.plist"
+    launchctl unload "${PLIST}" 2>/dev/null || true
+    rm -f "${PLIST}"
+    echo "  ✓ Removed ${PLIST}"
+  done
   echo "✓ Uninstalled"
   exit 0
 fi
 
 echo "→ Installing Agent PM launchd jobs…"
-
-# Copy plists from repo into ~/Library/LaunchAgents
 mkdir -p "${DST_DIR}"
-cp "${SRC_DIR}/${DISPATCH_LABEL}.plist" "${DISPATCH_PLIST}"
-cp "${SRC_DIR}/${WEEKLY_LABEL}.plist"   "${WEEKLY_PLIST}"
-echo "  ✓ Copied plists to ${DST_DIR}"
 
-# Unload any previous version first (idempotent)
-launchctl unload "${DISPATCH_PLIST}" 2>/dev/null || true
-launchctl unload "${WEEKLY_PLIST}"   2>/dev/null || true
-
-# Load
-launchctl load "${DISPATCH_PLIST}"
-launchctl load "${WEEKLY_PLIST}"
-echo "  ✓ Loaded into launchctl"
+for LABEL in "${LABELS[@]}"; do
+  SRC="${SRC_DIR}/${LABEL}.plist"
+  DST="${DST_DIR}/${LABEL}.plist"
+  if [[ ! -f "${SRC}" ]]; then
+    echo "  ✗ Missing source plist: ${SRC}"
+    continue
+  fi
+  cp "${SRC}" "${DST}"
+  launchctl unload "${DST}" 2>/dev/null || true
+  launchctl load "${DST}"
+  echo "  ✓ Loaded ${LABEL}"
+done
 
 # Verify
 echo
@@ -56,9 +56,13 @@ echo
 echo "✓ Install complete."
 echo
 echo "Next steps:"
-echo "  • pause.flag is still in place — dispatcher will exit cheap until you remove it:"
+echo "  • If pause.flag is in place, dispatcher will exit cheap until you remove it:"
 echo "      rm ${REPO_DIR}/.claude/agent-pm/pause.flag"
-echo "  • Tail logs:"
+echo "  • Tail dispatch log:"
 echo "      tail -f ${REPO_DIR}/.claude/agent-pm/logs/dispatch-\$(date +%Y-%m-%d).log"
+echo "  • Tail security log:"
+echo "      tail -f ${REPO_DIR}/.claude/agent-pm/logs/security-\$(date +%Y-%m-%d).log"
 echo "  • Force an immediate dispatch run:"
-echo "      launchctl start ${DISPATCH_LABEL}"
+echo "      launchctl start com.mssanwel.agent-pm.dispatch"
+echo "  • Force an immediate security audit:"
+echo "      launchctl start com.mssanwel.agent-pm.security"

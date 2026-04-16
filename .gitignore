@@ -6,6 +6,7 @@ pause.flag.bak
 .claude/agent-pm/logs/
 .claude/agent-pm/heartbeat.jsonl
 .claude/agent-pm/heartbeat-archive-*.jsonl
+.claude/agent-pm/security-reports/
 
 # secrets — never commit
 .env

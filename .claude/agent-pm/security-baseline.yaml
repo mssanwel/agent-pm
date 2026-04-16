@@ -1,0 +1,82 @@
+# Security baseline — known-good patterns for the daily audit.
+# Anything outside these patterns is flagged as an anomaly in the report.
+# Edit to match your environment; re-run the audit to confirm clean.
+
+launchd_jobs:
+  expected_prefixes:
+    - com.mssanwel.
+    - com.kodifly.
+    - com.productai.
+  expected_labels:
+    # Agent PM itself
+    - com.mssanwel.agent-pm.dispatch
+    - com.mssanwel.agent-pm.weekly
+    - com.mssanwel.agent-pm.security
+    # Pre-existing user jobs
+    - com.mssanwel.crm-sync-analysis
+    - com.mssanwel.crm-write-handler
+    - com.mssanwel.email-sync
+    - com.mssanwel.git-sync
+    - com.mssanwel.llmwiki
+    - com.mssanwel.wiki-resync
+    - com.kodifly.nightly-graphify
+    - com.kodifly.pipeline-health
+    - com.kodifly.weekly-finance-report
+    - com.productai.git-sync
+
+network:
+  # Remote hosts the claude CLI is allowed to reach (by regex on IP or domain).
+  # Everything else is flagged.
+  allowed_host_patterns:
+    - "^160\\.79\\."          # Anthropic API
+    - "^34\\.149\\."          # Google Cloud — claude.ai backend
+    - "^35\\."                # Google Cloud — MCP remotes
+    - "^140\\.82\\."          # GitHub
+    - "^185\\.199\\."         # GitHub Pages
+    - "^127\\.0\\.0\\.1"      # localhost MCPs (Obsidian)
+    - "^10\\."                # private network (VPN/LAN)
+    - "^192\\.168\\."         # private network
+
+files:
+  # Directories that SHOULD NOT be written to by claude or any agent-pm process.
+  protected_paths:
+    - ~/.ssh
+    - ~/.aws
+    - ~/.gnupg
+    - ~/Library/Keychains
+    - ~/.config/git/credentials
+    - /etc
+    - /usr/local/bin
+    - /opt/homebrew/bin
+  # Paths the agent is explicitly allowed to write to.
+  allowed_write_paths:
+    - ~/code/agent-pm
+    - ~/Documents/AI-Workspace
+    - ~/Library/Mobile Documents/iCloud~md~obsidian/Documents/mssanwel
+
+git:
+  expected_authors:
+    - "Saad Shahid Anwel <mssanwel@users.noreply.github.com>"
+    - "Muhammad Saad Shahid Anwel"
+  expected_remotes:
+    - "origin\\s+https://github.com/mssanwel/agent-pm"
+  # Flag if any commit in the last 24h doesn't have the Claude co-author tag
+  # AND isn't from an expected author (catches silent commits).
+
+cost:
+  # Alert if today's cost is more than this multiplier of yesterday's.
+  daily_spike_multiplier: 3.0
+  # Hard ceiling (matches config.yaml cost_caps.daily_usd_stop).
+  absolute_ceiling_usd: 25.0
+
+agent_pm_state:
+  # Agent PM paths that should exist and be reachable.
+  required_files:
+    - ~/code/agent-pm/.claude/agent-pm/config.yaml
+    - ~/code/agent-pm/.claude/agent-pm/skill-registry.yaml
+    - ~/code/agent-pm/.claude/triggers/agent-pm-dispatch.md
+  # Paths that SHOULD NOT exist (marker of a compromised install).
+  forbidden_files:
+    - ~/code/agent-pm/.claude/agent-pm/.env
+    - ~/code/agent-pm/.claude/agent-pm/secrets.yaml
+    - ~/code/agent-pm/.claude/agent-pm/auth.json
