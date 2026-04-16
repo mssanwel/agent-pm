@@ -16,6 +16,10 @@ linear:
     human_review: bce05a50-cbad-458a-8ff6-b9e3efe48a93
     done: 536c3446-2951-4f89-96c4-79a0a1cc7dc1
 
+  # Long-lived issues the dispatcher references by ID (never by title search)
+  issues:
+    heartbeat_id: MSS-2791      # pinned issue; dispatcher posts run stats here
+
   labels:
     agent_pm: e0e7d6d5-ca73-4591-b830-9853673060cb
     agent_skills_group: d0f91b1e-fdd6-4826-ad49-32cd84de2998

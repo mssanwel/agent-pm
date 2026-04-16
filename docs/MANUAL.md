@@ -157,16 +157,37 @@ Walk the list. For each skill, decide:
 
 Run `/agent-pm doctor` afterwards — it checks every path and flags unresolved placeholders.
 
-### 3.6 Register the cron
+### 3.6 Install the launchd jobs
 
-Two scheduled triggers:
+Agent PM runs locally via launchd. This gives the dispatcher access to local MCPs (Obsidian), local files, and local credentials.
 
-| Trigger | Cron | File |
+```bash
+cd ~/code/agent-pm
+./scripts/install-launchd.sh
+```
+
+Loads two jobs:
+
+| Label | When | File |
 |---|---|---|
-| `agent-pm-dispatch` | `*/10 * * * *` | `.claude/triggers/agent-pm-dispatch.md` |
-| `agent-pm-weekly` | `0 9 * * 1` | `.claude/triggers/agent-pm-weekly.md` |
+| `com.mssanwel.agent-pm.dispatch` | every 10 min | `scripts/launchd/com.mssanwel.agent-pm.dispatch.plist` |
+| `com.mssanwel.agent-pm.weekly` | Mon 09:00 local | `scripts/launchd/com.mssanwel.agent-pm.weekly.plist` |
 
-Register via the `CronCreate` tool, or run `/agent-pm deploy` once the slash command loads.
+Each job invokes a runner script (`scripts/run-dispatch.sh` / `run-weekly.sh`) that:
+- checks `pause.flag` and exits cheap if present
+- takes a lock at `.claude/agent-pm/dispatch.lock` (stale after 20 min)
+- invokes `claude -p` against the trigger prompt file
+- logs to `.claude/agent-pm/logs/dispatch-YYYY-MM-DD.log`
+
+To uninstall: `./scripts/install-launchd.sh uninstall`.
+
+**Why launchd?** macOS cron skips jobs when the laptop is asleep. launchd catches up on wake and survives sleep/reboot cycles.
+
+**Also symlink the slash command** so `/agent-pm` works from any project:
+
+```bash
+ln -s ~/code/agent-pm/.claude/commands/agent-pm.md ~/.claude/commands/agent-pm.md
+```
 
 ### 3.7 Dry-run
 

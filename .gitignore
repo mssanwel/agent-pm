@@ -2,6 +2,8 @@
 *.log
 pause.flag.bak
 .claude/agent-pm/learning-log-archive-*.md
+.claude/agent-pm/dispatch.lock
+.claude/agent-pm/logs/
 
 # secrets — never commit
 .env

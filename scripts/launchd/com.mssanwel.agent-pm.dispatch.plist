@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.mssanwel.agent-pm.dispatch</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/muhammadsaadshahidanwel/code/agent-pm/scripts/run-dispatch.sh</string>
+    </array>
+
+    <!-- Run every 10 minutes -->
+    <key>StartInterval</key>
+    <integer>600</integer>
+
+    <!-- If the Mac was asleep when a run was due, fire once on wake -->
+    <key>RunAtLoad</key>
+    <false/>
+
+    <!-- Log stdout/stderr separately from the script's own log -->
+    <key>StandardOutPath</key>
+    <string>/Users/muhammadsaadshahidanwel/code/agent-pm/.claude/agent-pm/logs/launchd-dispatch.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/muhammadsaadshahidanwel/code/agent-pm/.claude/agent-pm/logs/launchd-dispatch.err.log</string>
+
+    <!-- Give launchd a sensible PATH so `claude` resolves -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>HOME</key>
+        <string>/Users/muhammadsaadshahidanwel</string>
+    </dict>
+
+    <!-- Nice + background CPU so it doesn't fight foreground work -->
+    <key>Nice</key>
+    <integer>10</integer>
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <!-- Throttle: don't restart in tight loops if the script fails -->
+    <key>ThrottleInterval</key>
+    <integer>120</integer>
+</dict>
+</plist>

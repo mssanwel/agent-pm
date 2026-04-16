@@ -12,14 +12,16 @@
 
 Run these checks in order. Exit immediately if any fails.
 
-1. **Pause flag.** `ls .claude/agent-pm/pause.flag` — if present, exit. No Linear calls, no logging.
+> **Note on concurrency:** the local launchd runner (`scripts/run-dispatch.sh`) takes a lock at `.claude/agent-pm/dispatch.lock` before invoking Claude, and clears it on exit (including stale-lock recovery after 20 min). So by the time Phase 0 runs, concurrency is already handled at the shell level. You do NOT need to manage the lock from inside the trigger prompt.
+
+1. **Pause flag.** `ls .claude/agent-pm/pause.flag` — if present, exit. No Linear calls, no logging. (The runner script already checks this, but check again defensively in case the runner was bypassed.)
 2. **Load config.** Read `.claude/agent-pm/config.yaml` and `.claude/agent-pm/skill-registry.yaml`. Parse.
 3. **Working hours.** Compare current time in `config.timezone` against `working_hours.start|end|days`.
    - Outside window AND `process_feedback_outside_hours=false` → exit.
    - Outside window AND `process_feedback_outside_hours=true` → run Phase 1 only, skip Phases 2–4.
-4. **Daily cost cap.** Read today's cumulative dispatch cost from the Heartbeat issue (see Phase 5). If ≥ `cost_caps.daily_usd_stop`:
-   - `touch .claude/agent-pm/pause.flag` with a reason line
-   - Create a Linear issue titled `Agent PM — auto-paused (daily cost cap)` in `Human Review` with label `agent-pm`
+4. **Daily cost cap.** `list_comments` on the heartbeat issue (ID from `skill-registry.yaml:linear.issues.heartbeat_id`). Filter to today's UTC date. Extract every line matching `^COST: \$([0-9.]+)$` and sum. If sum ≥ `cost_caps.daily_usd_stop`:
+   - `Write .claude/agent-pm/pause.flag` with content: `auto-paused: <ISO timestamp>\nreason: daily cost cap $<sum> ≥ $<cap>`
+   - Create a Linear issue titled `Agent PM — auto-paused (daily cost cap)` in `Human Review` with label `agent-pm`, body explaining the trigger
    - Exit.
 
 ## Phase 1 — Quick scan (3 parallel `list_issues` calls)
@@ -116,14 +118,17 @@ Process the **oldest** item in `Q_work` (plus any promoted from Phase 3 if capac
 
 **Only if Phase 1, 2, 3, or 4 did real work** (i.e. not a fast-exit run):
 
-1. Look up a pinned Linear issue titled `Agent PM — Heartbeat` in the Mssanwel team with labels `agent-pm` + `ops`.
-2. If it doesn't exist, create it in `In Progress` with priority `None`.
-3. Add a single comment with this run's stats:
+1. **Read the pinned heartbeat ID** from `skill-registry.yaml:linear.issues.heartbeat_id`. Do NOT search by title — the ID is authoritative.
+2. If the ID is missing or the issue can't be fetched: log the problem and skip heartbeat posting this tick (don't create a new one from within the trigger — that's a human decision).
+3. **Post run stats** as a single comment on that issue. Use this exact machine-readable format (the cost-cap check in Phase 0 greps for `COST:`):
    ```
-   Run at <ISO timestamp> · feedback:<n> · triage:<n> · worker:<n> · tokens:<approx> · cost:~$<x>
+   Run: <ISO-8601 UTC> · feedback:<n> · triage:<n> · worker:<n>
+   TOKENS: <approx-int>
+   COST: $<x.xx>
    — Agent PM
    ```
-4. Keep the heartbeat issue perma-open. Don't close it.
+   `COST:` line is grepable — Phase 0 reads the day's heartbeat comments, sums `COST:` figures, compares to `cost_caps.daily_usd_stop`.
+5. Keep the heartbeat issue perma-open. Don't close it.
 
 ## Phase 6 — Exit
 

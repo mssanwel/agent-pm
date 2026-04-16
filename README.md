@@ -141,16 +141,30 @@ research:
   handler: "inline"     # Claude improvises with WebSearch + MCP
 ```
 
-### 5. Register the cron
+### 5. Install the launchd jobs (macOS, local execution)
 
-Two scheduled triggers need to run:
+Agent PM is designed to **run locally on your Mac** so it has access to local MCPs (Obsidian), local scripts, and local credentials. Cloud-hosted triggers don't see any of that.
 
-| Trigger | Schedule | File |
+```bash
+cd ~/code/agent-pm
+./scripts/install-launchd.sh
+```
+
+This copies two plists into `~/Library/LaunchAgents/` and loads them:
+
+| Job label | When | What it runs |
 |---|---|---|
-| `agent-pm-dispatch` | `*/10 * * * *` | `.claude/triggers/agent-pm-dispatch.md` |
-| `agent-pm-weekly` | `0 9 * * 1` | `.claude/triggers/agent-pm-weekly.md` |
+| `com.mssanwel.agent-pm.dispatch` | Every 10 min | `scripts/run-dispatch.sh` → `claude -p` against the dispatch trigger |
+| `com.mssanwel.agent-pm.weekly` | Mon 09:00 local | `scripts/run-weekly.sh` → Monday consolidation |
 
-In Claude Code, use the `CronCreate` tool (or run `/agent-pm deploy` once the slash command is loaded).
+Each runner script:
+- Checks `pause.flag` first and exits immediately if present
+- Takes a lock at `.claude/agent-pm/dispatch.lock` to prevent overlapping runs (stale after 20 min)
+- Logs to `.claude/agent-pm/logs/dispatch-YYYY-MM-DD.log`
+
+**Why launchd and not cron?** macOS laptops miss cron jobs when asleep. launchd catches up on wake.
+
+To uninstall: `./scripts/install-launchd.sh uninstall`.
 
 ### 6. Dry-run, then go live
 
