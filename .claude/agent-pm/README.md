@@ -1,6 +1,11 @@
 # .claude/agent-pm — Internal System Docs
 
-Operational reference for people running or modifying the dispatcher. For high-level context, see the repo-root `README.md` and `docs/architecture.md`.
+Operational reference for people running or modifying the dispatcher.
+
+**See also:**
+- [`../../README.md`](../../README.md) — repo pitch + architecture overview
+- [`../../docs/MANUAL.md`](../../docs/MANUAL.md) — full user manual (setup, daily use, debugging, extending)
+- [`../../docs/architecture.md`](../../docs/architecture.md) — deeper internals
 
 ## Files in this directory
 
