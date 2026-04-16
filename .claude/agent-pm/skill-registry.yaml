@@ -1,0 +1,119 @@
+# Agent PM — Skill Registry
+#
+# This file is THE routing table. The dispatcher reads it every run.
+# Handlers = delegation, not duplication. If a skill exists somewhere,
+# reference it — don't rewrite it here.
+
+linear:
+  team_id: c2b9eeef-df4b-4afd-884f-49a3fc78f8eb   # Mssanwel team
+
+  # Workflow states. The `ai_todo` state MUST be created manually in Linear
+  # (the MCP does not expose `create_issue_status`). Once created, paste its
+  # UUID into the `ai_todo` field below.
+  states:
+    ai_todo: "TODO-create-AI-Todo-state-in-Linear-UI"   # <-- REPLACE
+    ai_in_progress: 0bbdc0cf-89c1-419a-9cc3-1b90221cc546
+    ai_review: 431139e4-5785-4ffc-9969-e812d17c802c
+    human_review: bce05a50-cbad-458a-8ff6-b9e3efe48a93
+    done: 536c3446-2951-4f89-96c4-79a0a1cc7dc1
+
+  labels:
+    agent_pm: e0e7d6d5-ca73-4591-b830-9853673060cb
+    agent_skills_group: d0f91b1e-fdd6-4826-ad49-32cd84de2998
+    research: dc2afdce-19e7-4526-9644-5328e8de9d90
+    data_sync: 7f95354d-a8db-478f-9170-8c5ae52c3c18
+    report: 53f849e8-5529-4121-83bb-9b7eb1635fb0
+    meeting_prep: ee25ae18-88dc-4694-b513-a27772b4b4b5
+    content: 49864686-0164-4036-8b36-bf248c1127d7
+    strategy: 114fd4f9-36bf-4f94-9951-f1f7e7e7127b
+    ops: 141e416e-a743-4334-bdc5-9b88909c2578
+    knowledge: 992a7ac4-064f-4821-bcca-8f0ca8353ea2
+
+# --- Skills ---
+# Each skill routes Linear issues with matching labels OR keywords to a handler.
+# Handler types: trigger:<name> | skill:<path> | script:<path> | mcp:<server>:<tool> | inline
+skills:
+
+  crm-sync:
+    labels: [data-sync]
+    keywords: [attio, deals, pipeline, crm, sales inbound]
+    handler: trigger:crm-sync-analysis
+    capability: "Sync Gmail deals to Attio CRM — delegates to existing read-only analysis trigger; a separate write trigger runs after approval."
+    requires_human_approval: true
+
+  meeting-analysis:
+    labels: [meeting-prep]
+    keywords: [meeting, transcript, debrief, fireflies, 1-1, one-on-one]
+    handler: "skill:/Users/muhammadsaadshahidanwel/Documents/AI-Workspace/3. Strategy-AI/.claude/skills/meeting-analysis/SKILL.md"
+    capability: "Analyze meeting transcripts, extract decisions, update per-topic memory."
+    requires_human_approval: false
+
+  strategy-worksheet:
+    labels: [strategy]
+    keywords: [strategy, SWOT, OKR, workshop, planning, worksheet]
+    handler: "skill:/Users/muhammadsaadshahidanwel/Documents/AI-Workspace/3. Strategy-AI/.claude/skills/strategy-worksheet/SKILL.md"
+    capability: "Generate structured strategy worksheets for stakeholder discussions."
+    requires_human_approval: false
+
+  email-sync:
+    labels: [data-sync, knowledge]
+    keywords: [email, gmail, inbox, sync, claude-review]
+    handler: "skill:/Users/muhammadsaadshahidanwel/.claude/skills/email-sync/SKILL.md"
+    capability: "Sync claude-review Gmail threads to the mssanwel Obsidian vault."
+    requires_human_approval: false
+
+  obsidian-note:
+    labels: [knowledge, content]
+    keywords: [obsidian, note, vault, zettel, save to vault]
+    handler: mcp:obsidian:create_or_update_note
+    capability: "Create or update a note in the mssanwel Obsidian vault via MCP."
+    requires_human_approval: false
+
+  graphify-ingest:
+    labels: [knowledge]
+    keywords: [graphify, knowledge graph, entities, relationships, ingest]
+    handler: "skill:/Users/muhammadsaadshahidanwel/.claude/skills/graphify/SKILL.md"
+    capability: "Ingest content into the Graphify knowledge graph."
+    requires_human_approval: false
+
+  research:
+    labels: [research]
+    keywords: [research, investigate, compare, market, competitor, benchmark]
+    handler: inline
+    capability: "Deep research with web search + cross-referencing across workspace wiki and MCP sources."
+    requires_human_approval: false
+
+  financial-report:
+    labels: [report, ops]
+    keywords: [xero, finance, budget, "P&L", cashflow, revenue]
+    handler: inline
+    capability: "Pull Xero data and generate financial reports. Xero auth helper at plugins/xero/xero_auth.py — upgrade to script: handler when wired."
+    requires_human_approval: true
+
+  hiring-pipeline:
+    labels: [ops, report]
+    keywords: [ashby, hiring, recruitment, candidates, pipeline health]
+    handler: inline
+    capability: "Audit hiring pipeline from Ashby ATS. Upgrade to script: handler when wrapper exists."
+    requires_human_approval: true
+
+  jira-sync:
+    labels: [data-sync, ops]
+    keywords: [jira, sprint, tickets, kodifly, atlassian]
+    handler: inline
+    capability: "Pull Jira data and generate sprint reports via Atlassian MCP."
+    requires_human_approval: false
+
+  content-draft:
+    labels: [content]
+    keywords: [write, draft, email, doc, brief, proposal, memo]
+    handler: inline
+    capability: "Draft emails, docs, briefs, proposals. Always requires review before send."
+    requires_human_approval: true
+
+  general:
+    labels: []
+    keywords: []
+    handler: inline
+    capability: "Fallback — Claude improvises with WebSearch + available MCP."
+    requires_human_approval: false

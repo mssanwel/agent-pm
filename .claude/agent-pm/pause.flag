@@ -1,0 +1,16 @@
+paused-from-initial-scaffold
+
+Created during initial repo scaffold. The dispatcher exits on pre-flight while
+this file is present. Delete this file to go live:
+
+    rm .claude/agent-pm/pause.flag
+
+Or use the slash command:
+
+    /agent-pm resume
+
+To re-pause:
+
+    touch .claude/agent-pm/pause.flag
+    # or
+    /agent-pm pause "reason"

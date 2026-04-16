@@ -1,0 +1,17 @@
+.DS_Store
+*.log
+pause.flag.bak
+.claude/agent-pm/learning-log-archive-*.md
+
+# secrets — never commit
+.env
+*.secret
+*.key
+
+# local scratchpad
+discovery.md
+
+# editor
+.idea/
+.vscode/
+*.swp
