@@ -34,13 +34,25 @@ if ! command -v claude >/dev/null 2>&1; then
   fi
 fi
 
+CONFIG_FILE="${REPO_DIR}/.claude/agent-pm/config.yaml"
+MODEL="$(python3 -c "
+import yaml
+try:
+    c = yaml.safe_load(open('${CONFIG_FILE}'))
+    print((c.get('model') or {}).get('dispatch', 'claude-sonnet-4-6'))
+except Exception:
+    print('claude-sonnet-4-6')
+" 2>/dev/null)"
+MODEL="${MODEL:-claude-sonnet-4-6}"
+
 echo "===" >> "${LOG_FILE}"
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] weekly start" >> "${LOG_FILE}"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] weekly start (model=${MODEL})" >> "${LOG_FILE}"
 
 PROMPT="Read and execute the instructions in ${TRIGGER_FILE}. This is the scheduled Monday weekly consolidation run. Follow every step exactly as written."
 
 cd "${REPO_DIR}"
 claude -p "${PROMPT}" \
+  --model "${MODEL}" \
   --dangerously-skip-permissions \
   --allowedTools 'mcp__claude_ai_Linear__*,Read,Write,Edit,Bash,Grep,Glob' \
   >> "${LOG_FILE}" 2>&1

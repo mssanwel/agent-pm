@@ -52,11 +52,14 @@ skill_overrides:
     # Only generate finance packs on Mondays.
     working_hours: { days: [mon] }
 
-# Model selection.
+# Model selection. The bash runner (scripts/run-dispatch.sh) reads
+# model.dispatch and passes it to `claude -p --model ...` on every tick.
+# Worker-level fallback: within a single dispatch run, the model stays
+# the same; worker_complex would need a nested invocation (not wired yet).
 model:
   dispatch: claude-sonnet-4-6
   worker_default: claude-sonnet-4-6
-  worker_complex: claude-opus-4-6
+  worker_complex: claude-sonnet-4-6    # kept same for now — see note above
 
 # Notifications.
 notify:

@@ -52,22 +52,32 @@ if ! command -v claude >/dev/null 2>&1; then
   fi
 fi
 
+# --- read model from config.yaml (falls back to sonnet-4-6) ---
+CONFIG_FILE="${REPO_DIR}/.claude/agent-pm/config.yaml"
+MODEL="$(python3 -c "
+import yaml, sys
+try:
+    c = yaml.safe_load(open('${CONFIG_FILE}'))
+    print((c.get('model') or {}).get('dispatch', 'claude-sonnet-4-6'))
+except Exception:
+    print('claude-sonnet-4-6')
+" 2>/dev/null)"
+MODEL="${MODEL:-claude-sonnet-4-6}"
+
 # --- take the lock ---
 date > "${LOCK_FILE}"
 trap 'rm -f "${LOCK_FILE}"' EXIT INT TERM
 
 # --- log run start ---
 echo "===" >> "${LOG_FILE}"
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] dispatch start" >> "${LOG_FILE}"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] dispatch start (model=${MODEL})" >> "${LOG_FILE}"
 
 # --- run dispatch ---
-# Prompt: "Execute the dispatch trigger instructions at TRIGGER_FILE."
-# -p = non-interactive (headless) mode
-# --cwd sets project context so MCPs + .claude/ config resolve correctly
 PROMPT="Read and execute the instructions in ${TRIGGER_FILE}. This is a scheduled dispatch run. Follow every phase exactly as written. Do not ask for confirmation on any step — this is unattended. Use dangerous-skip-permissions=false behaviour: if a tool is blocked, surface the error; never mutate beyond what the trigger authorises."
 
 cd "${REPO_DIR}"
 claude -p "${PROMPT}" \
+  --model "${MODEL}" \
   --dangerously-skip-permissions \
   --allowedTools 'mcp__claude_ai_Linear__*,Read,Write,Edit,Bash,Grep,Glob' \
   >> "${LOG_FILE}" 2>&1
