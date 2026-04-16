@@ -1,7 +1,15 @@
+---
+description: Control the Agent PM dispatcher — status, pause, resume, config, set, skills, test, log, deploy, doctor
+argument-hint: <subcommand> [args]
+allowed-tools: [Bash, Read, Write, Edit, Glob, Grep, mcp__claude_ai_Linear__list_issues, mcp__claude_ai_Linear__list_comments, mcp__claude_ai_Linear__list_issue_statuses, mcp__claude_ai_Linear__list_issue_labels, mcp__claude_ai_Linear__get_issue, mcp__claude_ai_Linear__get_issue_status]
+---
+
 # /agent-pm — Control surface
 
 Interactive control for the Agent PM dispatcher. Invoke with `/agent-pm <subcommand> [args]`.
 Running `/agent-pm` with no args prints this help.
+
+The user called: `/agent-pm $ARGUMENTS`
 
 Claude reads this file and executes the branch that matches the subcommand. No separate code.
 
